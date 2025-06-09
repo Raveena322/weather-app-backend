@@ -57,7 +57,7 @@ async def get_weather(
             params.update({'q': city})
         
         url = f"{BASE_URL}/weather"
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=5)
         
         if response.status_code != 200:
             error_data = response.json()
@@ -97,7 +97,7 @@ async def get_forecast(
             params.update({'q': city})
         
         url = f"{BASE_URL}/forecast"
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=5)
         
         if response.status_code != 200:
             error_data = response.json()
