@@ -1,12 +1,13 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 import os
 from dotenv import load_dotenv
 import logging
+from typing import Optional
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load environment variables
@@ -37,79 +38,83 @@ async def health_check():
 
 @app.get("/api/weather")
 async def get_weather(
-    lat: float = Query(None),
-    lon: float = Query(None),
-    city: str = Query(None)
+    lat: Optional[float] = Query(None),
+    lon: Optional[float] = Query(None),
+    city: Optional[str] = Query(None)
 ):
     try:
-        logger.debug(f"Received request with lat: {lat}, lon: {lon}, city: {city}")
-        
+        if not any([lat, lon, city]):
+            raise HTTPException(status_code=400, detail="Either city name or coordinates (lat, lon) are required")
+
+        params = {
+            'appid': API_KEY,
+            'units': 'metric'
+        }
+
         if lat is not None and lon is not None:
-            params = {
-                'lat': lat,
-                'lon': lon,
-                'appid': API_KEY,
-                'units': 'metric'
-            }
+            params.update({'lat': lat, 'lon': lon})
         elif city:
-            params = {
-                'q': city,
-                'appid': API_KEY,
-                'units': 'metric'
-            }
-        else:
-            return {"error": "Either city name or coordinates (lat, lon) are required"}
-
+            params.update({'q': city})
+        
         url = f"{BASE_URL}/weather"
-        response = requests.get(url, params=params)
-        data = response.json()
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code != 200:
+            error_data = response.json()
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=error_data.get('message', 'Weather service error')
+            )
 
-        if data.get('cod') != 200:
-            error_message = data.get('message', 'City not found')
-            return {"error": error_message}
+        return response.json()
 
-        return data
-
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="Weather service timeout")
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=503, detail="Weather service unavailable")
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
-        return {"error": "Weather service is currently unavailable. Please try again later."}
+        logger.error(f"Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/api/forecast")
 async def get_forecast(
-    lat: float = Query(None),
-    lon: float = Query(None),
-    city: str = Query(None)
+    lat: Optional[float] = Query(None),
+    lon: Optional[float] = Query(None),
+    city: Optional[str] = Query(None)
 ):
     try:
+        if not any([lat, lon, city]):
+            raise HTTPException(status_code=400, detail="Either city name or coordinates (lat, lon) are required")
+
+        params = {
+            'appid': API_KEY,
+            'units': 'metric'
+        }
+
         if lat is not None and lon is not None:
-            params = {
-                'lat': lat,
-                'lon': lon,
-                'appid': API_KEY,
-                'units': 'metric'
-            }
+            params.update({'lat': lat, 'lon': lon})
         elif city:
-            params = {
-                'q': city,
-                'appid': API_KEY,
-                'units': 'metric'
-            }
-        else:
-            return {"error": "Either city name or coordinates (lat, lon) are required"}
-
+            params.update({'q': city})
+        
         url = f"{BASE_URL}/forecast"
-        response = requests.get(url, params=params)
-        data = response.json()
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code != 200:
+            error_data = response.json()
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=error_data.get('message', 'Weather service error')
+            )
 
-        if data.get('cod') != '200':
-            error_message = data.get('message', 'City not found')
-            return {"error": error_message}
+        return response.json()
 
-        return data
-
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="Weather service timeout")
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=503, detail="Weather service unavailable")
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
-        return {"error": "Weather service is currently unavailable. Please try again later."}
+        logger.error(f"Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 if __name__ == "__main__":
     import uvicorn
